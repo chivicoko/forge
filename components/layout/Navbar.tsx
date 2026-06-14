@@ -159,7 +159,7 @@ export function Navbar() {
                     aria-haspopup="true"
                   >
                     <User className="h-4 w-4" />
-                    <span className="text-xs font-semibold max-w-[80px] truncate">
+                    <span className="text-xs font-semibold max-w-20 truncate">
                       {user.firstName}
                     </span>
                     <ChevronDown
