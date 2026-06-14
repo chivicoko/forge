@@ -38,6 +38,7 @@
     "react-fast-marquee": "^1.6.5",
     "react-hook-form": "^7.78.0",
     "recharts": "^2.15.4",
+    "resend": "^6.12.4",
     "sonner": "^2.0.7",
     "stripe": "^17.7.0",
     "tailwind-merge": "^3.6.0",

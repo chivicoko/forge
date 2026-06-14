@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { useUser, SignInButton } from "@clerk/nextjs";
 import { Separator } from "@/components/ui/separator";
-import { useSyncExternalStore } from "react";
+import { useSyncExternalStore, useEffect } from "react";
 
 const checkoutSchema = z.object({
   phone_number: z.string().min(7, "Valid phone number required"),
@@ -53,19 +53,29 @@ export default function CheckoutPage() {
     cartCount,
     clearCart,
   } = useCart();
-  const mounted = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false,
-  );
   const { rateId } = useUserPrefs();
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn } = useUser();
   const router = useRouter();
   const { data: rates } = useQuery(listRatesQueryOptions);
   const effectiveRateId = rateId || rates?.[0]?.id || "";
   const { data: rateDetails } = useQuery(
     getRateByIdQueryOptions(effectiveRateId),
   );
+
+  // Hydration-safe mounted flag — cart lives in localStorage
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  // Redirect to store if cart is empty (only after mount so we read real localStorage)
+  useEffect(() => {
+    if (mounted && cartCount() === 0) {
+      toast.info("Your cart is empty");
+      router.replace("/store");
+    }
+  }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rate = rateDetails?.naira_rate ?? 1;
   const symbol = getCurrencySymbol(rateDetails?.currency ?? "NGN");
@@ -99,11 +109,6 @@ export default function CheckoutPage() {
       toast.error("Please sign in to checkout");
       return;
     }
-    if (cartCount() < 1) {
-      toast.warning("Cart is empty");
-      return;
-    }
-
     mutation.mutate({
       item: cart.map((i) => ({
         product: i.id,
@@ -123,7 +128,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-4 pb-8 pt-24">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
           <Button variant="ghost" size="icon" asChild className="shrink-0">
@@ -224,7 +229,7 @@ export default function CheckoutPage() {
                   <span className="w-1 h-6 rounded-full bg-amber-500 block" />
                   <h2 className="font-bold text-lg">Your Items</h2>
                 </div>
-                {cart.length === 0 ? (
+                {!mounted || cart.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
                     <p>Your cart is empty.</p>
                     <Button asChild variant="link" className="text-amber-500">
@@ -232,7 +237,7 @@ export default function CheckoutPage() {
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                  <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar pr-1">
                     {cart.map((item) => (
                       <div
                         key={item.id}
@@ -261,34 +266,39 @@ export default function CheckoutPage() {
                             {symbol}
                             {(item.price / rate).toFixed(2)}
                           </p>
-                          {item.sizes?.length > 0 && (
+                          {(item.sizes as string[])?.length > 0 && (
                             <p className="text-xs text-muted-foreground">
-                              Size: {item.sizes.join(", ")}
+                              Size: {(item.sizes as string[]).join(", ")}
                             </p>
                           )}
-                          {item.colors?.length > 0 && (
+                          {(item.colors as string[])?.length > 0 && (
                             <p className="text-xs text-muted-foreground">
-                              Color: {item.colors.join(", ")}
+                              Colour: {(item.colors as string[]).join(", ")}
                             </p>
                           )}
+                          {/* Quantity stepper — stays in sync with cart store */}
                           <div className="flex items-center gap-2 mt-2">
                             <button
                               type="button"
                               onClick={() => decreaseQuantity(item.id)}
-                              aria-label="Decrease quantity"
+                              aria-label="Decrease"
                             >
                               <SquareMinus className="h-4 w-4 hover:text-amber-500 transition-colors" />
                             </button>
-                            <span className="text-sm font-semibold w-5 text-center">
+                            <span className="text-sm font-bold w-5 text-center">
                               {item.quantity}
                             </span>
                             <button
                               type="button"
                               onClick={() => increaseQuantity(item.id)}
-                              aria-label="Increase quantity"
+                              aria-label="Increase"
                             >
                               <SquarePlus className="h-4 w-4 hover:text-amber-500 transition-colors" />
                             </button>
+                            <span className="text-xs text-muted-foreground ml-1">
+                              = {symbol}
+                              {((item.price * item.quantity) / rate).toFixed(2)}
+                            </span>
                           </div>
                         </div>
                         <button
@@ -309,31 +319,33 @@ export default function CheckoutPage() {
             {/* ── RIGHT: payment + totals ── */}
             <div className="lg:col-span-2">
               <div className="bg-background border rounded-2xl p-6 sticky top-20 space-y-5">
-                {/* Order totals */}
+                {/* Totals */}
                 <div>
                   <h2 className="font-bold text-lg mb-4">Order Total</h2>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal</span>
+                      <span className="text-muted-foreground">
+                        Subtotal ({mounted ? cartCount() : 0} items)
+                      </span>
                       <span>
                         {symbol}
-                        {(cartTotalPrice() / rate).toFixed(2)}
+                        {mounted
+                          ? (cartTotalPrice() / rate).toFixed(2)
+                          : "0.00"}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Shipping</span>
                       <span className="text-green-600 font-medium">Free</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tax</span>
-                      <span>—</span>
-                    </div>
                     <Separator className="my-2" />
                     <div className="flex justify-between font-black text-lg">
                       <span>Total</span>
                       <span className="text-amber-500">
                         {symbol}
-                        {(cartTotalPrice() / rate).toFixed(2)}
+                        {mounted
+                          ? (cartTotalPrice() / rate).toFixed(2)
+                          : "0.00"}
                       </span>
                     </div>
                   </div>
@@ -367,10 +379,9 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                {/* CTA */}
                 <Button
                   type="submit"
-                  disabled={mutation.isPending || cart.length === 0}
+                  disabled={mutation.isPending || !mounted || cart.length === 0}
                   className="w-full h-12 bg-amber-500 hover:bg-amber-600 text-white font-bold text-base gap-2 rounded-xl"
                 >
                   {mutation.isPending ? (
@@ -379,7 +390,7 @@ export default function CheckoutPage() {
                       Redirecting to Stripe…
                     </>
                   ) : (
-                    `Pay ${symbol}${(cartTotalPrice() / rate).toFixed(2)}`
+                    `Pay ${symbol}${mounted ? (cartTotalPrice() / rate).toFixed(2) : "0.00"}`
                   )}
                 </Button>
 
