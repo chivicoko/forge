@@ -22,12 +22,12 @@ export function Footer() {
             </p>
             <div className="flex items-center gap-3">
               {[
-                { icon: Instagram, href: "#" },
-                { icon: Twitter, href: "#" },
-                { icon: Facebook, href: "#" },
-              ].map(({ icon: Icon, href }, idx) => (
+                { icon: Instagram, href: "#instagram", label: "Instagram" },
+                { icon: Twitter, href: "#twitter", label: "Twitter" },
+                { icon: Facebook, href: "#facebook", label: "Facebook" },
+              ].map(({ icon: Icon, href, label }) => (
                 <a
-                  key={idx}
+                  key={label}
                   href={href}
                   className="p-2 rounded-full border border-white/20 hover:border-amber-500 hover:text-amber-500 transition-colors"
                 >
@@ -49,7 +49,7 @@ export function Footer() {
                 ["New Arrivals", "/store?sort=new"],
                 ["Sale", "/store?sort=sale"],
               ].map(([label, href]) => (
-                <li key={href}>
+                <li key={label}>
                   <Link
                     href={href}
                     className="hover:text-amber-500 hover:opacity-100 transition-colors"
