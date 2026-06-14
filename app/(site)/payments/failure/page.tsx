@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useState, Suspense, useRef } from "react";
+import { useEffect, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -47,7 +47,7 @@ function FailureContent() {
         can try again.
       </p>
       <p className="text-muted-foreground text-xs mb-8">
-        If you were charged, the amount will be refunded within 3–5 business
+        If you were charged, the amount will be refunded within 3-5 business
         days.
       </p>
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
