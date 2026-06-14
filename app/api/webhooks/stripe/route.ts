@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase";
-import { sendOrderConfirmationEmail } from "@/lib/resend";
 import Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -27,7 +26,6 @@ export async function POST(req: NextRequest) {
     const orderId = session.metadata?.orderId;
 
     if (orderId) {
-      // 1. Fetch order with items
       const { data: order } = await supabaseAdmin
         .from("orders")
         .select("*, order_items(*)")
@@ -35,38 +33,23 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (order) {
-        // 2. Mark order paid
+        // 1. Mark order paid
         await supabaseAdmin
           .from("orders")
           .update({ status: "paid", stripe_session_id: session.id })
           .eq("id", orderId);
 
-        // 3. Decrement stock for each item
+        // 2. Decrement stock + increment sold for each item
         for (const item of order.order_items ?? []) {
           await supabaseAdmin.rpc("decrement_stock", {
             p_product_id: item.product_id,
             p_quantity: item.quantity,
           });
         }
-        // console.log(session.customer_email, session.customer_details?.email);
-        // 4. Send confirmation email
-        const userEmail =
-          session.customer_email ?? session.customer_details?.email;
-        if (userEmail) {
-          await sendOrderConfirmationEmail({
-            to: userEmail,
-            orderReference: order.reference ?? orderId,
-            orderId,
-            address: order.address,
-            totalCost: order.total_cost,
-            itemCount: order.order_items?.length ?? 0,
-          }).catch(console.error); // non-blocking — don't fail the webhook if email fails
-        }
       }
     }
   }
 
-  // Handle payment failure
   if (
     event.type === "checkout.session.expired" ||
     event.type === "payment_intent.payment_failed"
