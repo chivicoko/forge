@@ -1,84 +1,129 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- FORGE — Full Database Schema
+-- Run this entire file in Supabase SQL Editor (Dashboard → SQL Editor → New query)
+-- ─────────────────────────────────────────────────────────────────────────────
+
 -- Enable UUID extension
-create extension if not exists "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+
+-- ─── TABLES ──────────────────────────────────────────────────────────────────
 
 -- Categories
-create table if not exists categories (
-  id           uuid primary key default gen_random_uuid(),
-  name         text not null,
-  added_by_id  text not null,
-  is_listed    boolean not null default true,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+CREATE TABLE IF NOT EXISTS categories (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         text        NOT NULL,
+  added_by_id  text        NOT NULL,
+  is_listed    boolean     NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
 );
 
 -- Products
-create table if not exists products (
-  id           uuid primary key default gen_random_uuid(),
-  name         text not null,
+CREATE TABLE IF NOT EXISTS products (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         text        NOT NULL,
   slug         text,
-  description  text not null default '',
-  images       text[]    not null default '{}',
-  colors       text[]    not null default '{}',
-  sizes        text[]    not null default '{}',
-  price        numeric   not null check (price >= 0),
-  stock        integer   not null default 0,
-  sold         integer   not null default 0,
+  description  text        NOT NULL DEFAULT '',
+  images       text[]      NOT NULL DEFAULT '{}',
+  colors       text[]      NOT NULL DEFAULT '{}',
+  sizes        text[]      NOT NULL DEFAULT '{}',
+  price        numeric     NOT NULL CHECK (price >= 0),
+  stock        integer     NOT NULL DEFAULT 0,
+  sold         integer     NOT NULL DEFAULT 0,
   weight       numeric,
-  category_id  uuid references categories(id) on delete set null,
-  added_by_id  text not null,
-  is_listed    boolean not null default true,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  category_id  uuid        REFERENCES categories(id) ON DELETE SET NULL,
+  added_by_id  text        NOT NULL,
+  is_listed    boolean     NOT NULL DEFAULT true,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
 );
-create index if not exists idx_products_category on products(category_id);
-create index if not exists idx_products_listed   on products(is_listed);
 
--- Rates
-create table if not exists rates (
-  id          uuid primary key default gen_random_uuid(),
-  country     text not null,
-  currency    text not null,
-  naira_rate  numeric not null check (naira_rate > 0),
-  created_at  timestamptz not null default now(),
-  updated_at  timestamptz not null default now()
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_listed   ON products(is_listed);
+
+-- Exchange rates
+CREATE TABLE IF NOT EXISTS rates (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  country     text        NOT NULL,
+  currency    text        NOT NULL,
+  naira_rate  numeric     NOT NULL CHECK (naira_rate > 0),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
 -- Orders
-create table if not exists orders (
-  id                uuid primary key default gen_random_uuid(),
-  user_id           text not null,
-  address           text not null,
-  phone_number      text not null,
-  status            text not null default 'pending'
-                      check (status in ('pending','processing','shipped','delivered','cancelled','paid')),
-  reference         text unique default concat('FORGE-', upper(substring(gen_random_uuid()::text,1,10))),
-  total_cost        numeric not null default 0,
+CREATE TABLE IF NOT EXISTS orders (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           text        NOT NULL,
+  address           text        NOT NULL,
+  phone_number      text        NOT NULL,
+  status            text        NOT NULL DEFAULT 'pending'
+                                CHECK (status IN ('pending','processing','shipped','delivered','cancelled','paid')),
+  reference         text        UNIQUE DEFAULT concat('FORGE-', upper(substring(gen_random_uuid()::text, 1, 10))),
+  total_cost        numeric     NOT NULL DEFAULT 0,
   stripe_session_id text,
-  created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now()
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now()
 );
-create index if not exists idx_orders_user on orders(user_id);
+
+CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id);
 
 -- Order items
-create table if not exists order_items (
-  id          uuid primary key default gen_random_uuid(),
-  order_id    uuid not null references orders(id) on delete cascade,
-  product_id  uuid references products(id) on delete set null,
-  quantity    integer not null check (quantity > 0),
-  color       text not null default '',
-  size        text not null default '',
-  price       numeric not null,
-  created_at  timestamptz not null default now()
+CREATE TABLE IF NOT EXISTS order_items (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id    uuid        NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id  uuid        REFERENCES products(id) ON DELETE SET NULL,
+  quantity    integer     NOT NULL CHECK (quantity > 0),
+  color       text        NOT NULL DEFAULT '',
+  size        text        NOT NULL DEFAULT '',
+  price       numeric     NOT NULL,
+  created_at  timestamptz NOT NULL DEFAULT now()
 );
-create index if not exists idx_order_items_order on order_items(order_id);
 
--- RLS
-alter table categories  enable row level security;
-alter table products    enable row level security;
-alter table rates       enable row level security;
-alter table orders      enable row level security;
-alter table order_items enable row level security;
+CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 
-create policy "Public read products"   on products   for select using (is_listed = true);
-create policy "Public read categories" on categories for select using (is_listed = true);
-create policy "Public read rates"      on rates      for select using (true);
+
+-- ─── ROW LEVEL SECURITY ───────────────────────────────────────────────────────
+
+ALTER TABLE categories  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE rates       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+
+-- Public read access (anon key) — API routes use service role key which bypasses RLS
+CREATE POLICY "Public read products"   ON products   FOR SELECT USING (is_listed = true);
+CREATE POLICY "Public read categories" ON categories FOR SELECT USING (is_listed = true);
+CREATE POLICY "Public read rates"      ON rates      FOR SELECT USING (true);
+
+
+-- ─── FUNCTIONS ────────────────────────────────────────────────────────────────
+
+-- Safely decrements product stock and increments sold counter after a paid order.
+-- Called by the Stripe webhook handler via supabaseAdmin.rpc('decrement_stock', ...)
+CREATE OR REPLACE FUNCTION decrement_stock(p_product_id uuid, p_quantity integer)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE products
+  SET
+    stock = GREATEST(0, stock - p_quantity),
+    sold  = sold + p_quantity,
+    updated_at = now()
+  WHERE id = p_product_id;
+END;
+$$;
+
+
+-- ─── STORAGE ──────────────────────────────────────────────────────────────────
+-- After running this SQL, go to:
+--   Supabase Dashboard → Storage → New bucket
+--   Name: product-images
+--   Public: YES (toggle on)
+-- Then add this upload policy in Storage → product-images → Policies:
+--   Policy name: "Authenticated users can upload"
+--   Allowed operation: INSERT
+--   Target roles: authenticated
