@@ -2,7 +2,7 @@
 
 <div align="center">
   <br />
-  <img width="1280" height="720" alt="NovaBrief" src="./public/forge.png" />
+  <img width="1280" height="720" alt="NovaBrief" src="./public/images/forge.png" />
   <br />
   <div>
     <img src="https://img.shields.io/badge/-Next.js_15-000000?style=for-the-badge&logo=next.js&logoColor=white" alt="Next.js" />
