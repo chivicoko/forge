@@ -14,7 +14,7 @@
   <h3 align="center">A production-ready full-stack e-commerce app for premium men's bodywear, built with Next.js 16, Supabase, Clerk, Stripe, and EmailJS.</h3>
 </div>
 
---
+---
 
 ## Tech Stack
 
